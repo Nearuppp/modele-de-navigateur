@@ -42,6 +42,11 @@ jobs:
       - name: Build Electron app for ${{ matrix.artifact_name }}
         run: ${{ matrix.build_command }}
 
+      - name: List releases directory
+        run: |
+          echo "Contents of releases directory:"
+          ls -la releases/ || echo "No releases directory found"
+          
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -63,12 +68,60 @@ jobs:
         with:
           path: artifacts/
 
+      - name: List all artifacts
+        run: |
+          echo "All artifacts:"
+          find artifacts/ -type f -ls
+          
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          
+          # Copy executable files only, with proper naming
+          find artifacts/ -name "*.exe" -type f | while read file; do
+            cp "$file" "release-files/$(basename "$file")"
+          done
+          
+          find artifacts/ -name "*.dmg" -type f | while read file; do
+            cp "$file" "release-files/$(basename "$file")"
+          done
+          
+          find artifacts/ -name "*.AppImage" -type f | while read file; do
+            cp "$file" "release-files/$(basename "$file")"
+          done
+          
+          find artifacts/ -name "*.deb" -type f | while read file; do
+            cp "$file" "release-files/$(basename "$file")"
+          done
+          
+          find artifacts/ -name "*.rpm" -type f | while read file; do
+            cp "$file" "release-files/$(basename "$file")"
+          done
+          
+          find artifacts/ -name "*.snap" -type f | while read file; do
+            cp "$file" "release-files/$(basename "$file")"
+          done
+          
+          echo "Final release files:"
+          ls -la release-files/
+
+      - name: Check if release files exist
+        run: |
+          if [ -z "$(ls -A release-files/)" ]; then
+            echo "No release files found!"
+            exit 1
+          else
+            echo "Release files ready for upload:"
+            ls -la release-files/
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/**/*
+          files: release-files/*
           draft: false
           prerelease: false
           generate_release_notes: true
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
