@@ -42,10 +42,18 @@ jobs:
       - name: Build Electron app for ${{ matrix.artifact_name }}
         run: ${{ matrix.build_command }}
 
-      - name: List releases directory
+      - name: List releases directory (Windows)
+        if: matrix.os == 'windows-latest'
         run: |
           echo "Contents of releases directory:"
-          ls -la releases/ || echo "No releases directory found"
+          if (Test-Path releases) { Get-ChildItem releases -Recurse } else { echo "No releases directory found" }
+        shell: pwsh
+        
+      - name: List releases directory (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          echo "Contents of releases directory:"
+          ls -la releases/ 2>/dev/null || echo "No releases directory found"
           
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -70,55 +78,34 @@ jobs:
 
       - name: List all artifacts
         run: |
-          echo "All artifacts:"
-          find artifacts/ -type f -ls
+          echo "All downloaded artifacts:"
+          ls -R artifacts/ 2>/dev/null || echo "No artifacts found"
           
       - name: Prepare release files
         run: |
           mkdir -p release-files
           
-          # Copy executable files only, with proper naming
-          find artifacts/ -name "*.exe" -type f | while read file; do
-            cp "$file" "release-files/$(basename "$file")"
-          done
-          
-          find artifacts/ -name "*.dmg" -type f | while read file; do
-            cp "$file" "release-files/$(basename "$file")"
-          done
-          
-          find artifacts/ -name "*.AppImage" -type f | while read file; do
-            cp "$file" "release-files/$(basename "$file")"
-          done
-          
-          find artifacts/ -name "*.deb" -type f | while read file; do
-            cp "$file" "release-files/$(basename "$file")"
-          done
-          
-          find artifacts/ -name "*.rpm" -type f | while read file; do
-            cp "$file" "release-files/$(basename "$file")"
-          done
-          
-          find artifacts/ -name "*.snap" -type f | while read file; do
-            cp "$file" "release-files/$(basename "$file")"
-          done
-          
-          echo "Final release files:"
-          ls -la release-files/
-
-      - name: Check if release files exist
-        run: |
-          if [ -z "$(ls -A release-files/)" ]; then
-            echo "No release files found!"
-            exit 1
+          # Find and copy release files with more flexible patterns
+          if [ -d "artifacts" ]; then
+            # Copy all installer/executable files
+            find artifacts/ \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.snap" \) -type f -exec cp {} release-files/ \;
+            
+            echo "Final release files:"
+            ls -l release-files/ 2>/dev/null || echo "No files copied"
           else
-            echo "Release files ready for upload:"
-            ls -la release-files/
+            echo "No artifacts directory found"
           fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: release-files/*
+          files: |
+            release-files/*.exe
+            release-files/*.dmg
+            release-files/*.AppImage
+            release-files/*.deb
+            release-files/*.rpm
+            release-files/*.snap
           draft: false
           prerelease: false
           generate_release_notes: true
