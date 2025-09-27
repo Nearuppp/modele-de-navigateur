@@ -34,38 +34,25 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci # Faster than npm install
 
       - name: Build Angular app
-        run: npm run build
+        run: npm run build # Build the Angular app before packaging
 
       - name: Build Electron app for ${{ matrix.artifact_name }}
         run: ${{ matrix.build_command }}
-
-      - name: List releases directory (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          echo "Contents of releases directory:"
-          if (Test-Path releases) { Get-ChildItem releases -Recurse } else { echo "No releases directory found" }
-        shell: pwsh
-        
-      - name: List releases directory (Unix)
-        if: matrix.os != 'windows-latest'
-        run: |
-          echo "Contents of releases directory:"
-          ls -la releases/ 2>/dev/null || echo "No releases directory found"
           
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}-build
+          name: ${{ matrix.artifact_name }}-build # Upload artifacts with OS-specific names
           path: releases/
           retention-days: 30
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') # only run for tags starting with 'v'
     
     steps:
       - name: Checkout repository
@@ -76,36 +63,10 @@ jobs:
         with:
           path: artifacts/
 
-      - name: List all artifacts
-        run: |
-          echo "All downloaded artifacts:"
-          ls -R artifacts/ 2>/dev/null || echo "No artifacts found"
-          
-      - name: Prepare release files
-        run: |
-          mkdir -p release-files
-          
-          # Find and copy release files with more flexible patterns
-          if [ -d "artifacts" ]; then
-            # Copy all installer/executable files
-            find artifacts/ \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.snap" \) -type f -exec cp {} release-files/ \;
-            
-            echo "Final release files:"
-            ls -l release-files/ 2>/dev/null || echo "No files copied"
-          else
-            echo "No artifacts directory found"
-          fi
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            release-files/*.exe
-            release-files/*.dmg
-            release-files/*.AppImage
-            release-files/*.deb
-            release-files/*.rpm
-            release-files/*.snap
+          files: artifacts/**/*.{exe,dmg,AppImage,deb,rpm,snap}
           draft: false
           prerelease: false
           generate_release_notes: true
