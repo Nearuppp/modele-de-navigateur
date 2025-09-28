@@ -45,8 +45,14 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}-build # Upload artifacts with OS-specific names
-          path: releases/
+          name: ${{ matrix.artifact_name }}-build
+          path: |
+            releases/*.exe
+            releases/*.dmg
+            releases/*.AppImage
+            releases/*.deb
+            releases/*.rpm
+            releases/*.snap
           retention-days: 30
 
   release:
@@ -63,10 +69,32 @@ jobs:
         with:
           path: artifacts/
 
+      - name: List downloaded files
+        run: |
+          echo "=== Structure des artifacts téléchargés ==="
+          find artifacts/ -type f -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.snap" || echo "Aucun exécutable trouvé"
+          echo "=== Tous les fichiers dans artifacts ==="
+          find artifacts/ -type f | head -20
+
+      - name: Prepare release executables
+        run: |
+          mkdir -p release-executables
+          
+          # Copier seulement les vrais exécutables avec des noms clairs
+          find artifacts/ -name "*.exe" -type f -exec cp {} release-executables/ \;
+          find artifacts/ -name "*.dmg" -type f -exec cp {} release-executables/ \;
+          find artifacts/ -name "*.AppImage" -type f -exec cp {} release-executables/ \;
+          find artifacts/ -name "*.deb" -type f -exec cp {} release-executables/ \;
+          find artifacts/ -name "*.rpm" -type f -exec cp {} release-executables/ \;
+          find artifacts/ -name "*.snap" -type f -exec cp {} release-executables/ \;
+          
+          echo "=== Fichiers prêts pour la release ==="
+          ls -la release-executables/
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/**/*.{exe,dmg,AppImage,deb,rpm,snap}
+          files: release-executables/*
           draft: false
           prerelease: false
           generate_release_notes: true
