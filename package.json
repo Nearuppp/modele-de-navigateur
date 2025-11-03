@@ -1,64 +1,34 @@
 {
   "name": "browser-template",
   "version": "1.0.0",
-  "license": "GPLV3",
-  "repository": "https://github.com/unilasalle-amiens/modele-de-navigateur",
   "main": "main.js",
-  "author": "UniLaSalle",
-  "description": "Version développement d'un squelette de navigateur ",
   "scripts": {
-    "ng": "ng",
-    "start": "npm-run-all -p serve start:electron",
+    "start": "ng serve",
     "build": "ng build",
-    "serve": "ng serve",
-    "start:electron": "wait-on tcp:4200 && electron . --serve",
-    "build:mac": "ng build --base-href ./ && electron-builder -m --publish=never",
+    "test": "ng test",
+    "start:electron": "electron .",
     "build:win": "ng build --base-href ./ && electron-builder -w --publish=never",
-    "build:linux": "ng build --base-href ./ && electron-builder -l --publish=never",
-    "watch": "ng build --watch --configuration development",
-    "test": "ng test"
-  },
-  "private": true,
-  "dependencies": {
-    "@angular/animations": "^19.2.14",
-    "@angular/cdk": "^19.2.19",
-    "@angular/common": "^19.2.14",
-    "@angular/compiler": "^19.2.14",
-    "@angular/core": "^19.2.14",
-    "@angular/forms": "^19.2.14",
-    "@angular/material": "^19.2.19",
-    "@angular/platform-browser": "^19.2.14",
-    "@angular/platform-browser-dynamic": "^19.2.14",
-    "@angular/router": "^19.2.14",
-    "rxjs": "~7.8.0",
-    "tslib": "^2.3.0",
-    "zone.js": "~0.15.1"
-  },
-  "devDependencies": {
-    "@angular-devkit/build-angular": "^19.2.15",
-    "@angular/cli": "^19.2.15",
-    "@angular/compiler-cli": "^19.2.14",
-    "@types/jasmine": "~5.1.0",
-    "electron": "^32.0.2",
-    "electron-builder": "^25.0.5",
-    "jasmine-core": "~5.1.0",
-    "karma": "~6.4.0",
-    "karma-chrome-launcher": "~3.2.0",
-    "karma-coverage": "~2.2.0",
-    "karma-jasmine": "~5.1.0",
-    "karma-jasmine-html-reporter": "~2.1.0",
-    "npm-run-all": "^4.1.5",
-    "typescript": "~5.5.4",
-    "wait-on": "^8.0.0"
+    "build:mac": "ng build --base-href ./ && electron-builder -m --publish=never",
+    "build:linux": "ng build --base-href ./ && electron-builder -l --publish=never"
   },
   "build": {
-    "directories": {
-      "output": "releases"
-    },
+    "appId": "com.example.browser",
+    "productName": "browser-template",
     "files": [
       "main.js",
       "preload.js",
-      "dist/**/*"
-    ]
+      "package.json",
+      "dist/browser-template/browser/**/*"
+    ],
+    "directories": {
+      "output": "releases"
+    }
+  },
+  "dependencies": {
+    "@angular/animations": "^19.0.0"
+  },
+  "devDependencies": {
+    "electron": "^32.3.3",
+    "electron-builder": "^25.1.8"
   }
 }

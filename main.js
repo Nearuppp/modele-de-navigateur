@@ -1,6 +1,6 @@
 const { app, WebContentsView, BrowserWindow, ipcMain } = require('electron');
 const path = require('node:path');
-const fs = require('fs'); // Keep fs for the T-Rex fallback, though not strictly needed here
+const fs = require('fs');
 
 app.whenReady().then(() => {
   const win = new BrowserWindow({
@@ -11,137 +11,112 @@ app.whenReady().then(() => {
     }
   });
 
-  // 1. Load the Angular Toolbar into the Main Window (win)
-  if (app.isPackaged) {
-    win.loadFile('dist/browser-template/browser/index.html');
-  } else {
+  const isDev = !app.isPackaged;
+
+  // 1. Load Angular toolbar into main window
+  if (isDev) {
     win.loadURL('http://localhost:4200');
+  } else {
+    // ✅ FIX: Angular outputs to dist/browser-template/browser/
+    win.loadFile(path.join(__dirname, 'dist', 'browser-template', 'browser', 'index.html'));
   }
 
-  // Path to your T-Rex game (local HTML file)
-  const trexPath = path.join(__dirname, 'trex', 'index.html');
+  // 2. Find T-Rex HTML (dev and packaged paths)
+  function findTrexIndex() {
+    if (isDev) {
+      return path.join(__dirname, 'src', 'assets', 'trex', 'index.html');
+    }
 
-  // WebContentsView = browser view
+    // ✅ FIX: Add /browser/ to all packaged paths
+    const candidates = [
+      path.join(__dirname, 'dist', 'browser-template', 'browser', 'assets', 'trex', 'index.html'),
+      path.join(app.getAppPath(), 'dist', 'browser-template', 'browser', 'assets', 'trex', 'index.html'),
+      path.join(process.resourcesPath, 'app', 'dist', 'browser-template', 'browser', 'assets', 'trex', 'index.html')
+    ];
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        console.log('[T-Rex] Found at:', candidate);
+        return candidate;
+      }
+    }
+
+    console.error('[T-Rex] Not found. Tried:', candidates);
+    return null;
+  }
+
+  const trexPath = findTrexIndex();
+  
+  if (!trexPath) {
+    console.error('[T-Rex] FATAL: Cannot find trex/index.html');
+  }
+
+  // 3. Create BrowserView for web content
   const view = new WebContentsView();
   win.contentView.addChildView(view);
 
-  // Fit browser view into the window (under toolbar)
   function fitViewToWin() {
-    // NOTE: Use win.getBounds() instead of win.webContents.getOwnerBrowserWindow().getBounds()
-    // getBounds() is cleaner on the BrowserWindow instance.
-    const winSize = win.getBounds();
-    // The WebContentsView starts at y=55 (below the toolbar) and takes the rest of the height.
-    view.setBounds({ x: 0, y: 55, width: winSize.width, height: winSize.height - 55 });
+    const [width, height] = win.getContentSize();
+    const toolbarHeight = 64;
+    view.setBounds({ x: 0, y: toolbarHeight, width, height: height - toolbarHeight });
   }
 
-  // 🔹 Function to check if we are online (Uses fetch which may need special handling in Electron main process, 
-  // but we'll keep the Chat's implementation for now)
+  // 4. Listen for navigation events to sync address bar
+  view.webContents.on('did-start-navigation', (event, url, isInPlace, isMainFrame) => {
+    if (isMainFrame) win.webContents.send('navigation-started', url);
+  });
+
+  // 5. Load T-Rex on fail
+  view.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (isMainFrame && trexPath) {
+      const current = view.webContents.getURL() || '';
+      if (!current.includes('trex/index.html')) {
+        console.log('[T-Rex] Loading offline game');
+        view.webContents.loadFile(trexPath).catch(err => console.error('[T-Rex] Load failed:', err));
+      }
+    }
+  });
+
+  // 6. Check online status
   async function isOnline() {
     try {
-      const { net } = require('electron'); // Use Electron's net module for main process requests
-      const request = net.request('https://www.google.com');
-      return new Promise((resolve) => {
-        request.on('response', (response) => {
-          resolve(response.statusCode === 200);
-        });
-        request.on('error', () => {
-          resolve(false);
-        });
-        request.end();
-      });
-    } catch {
-      return false;
-    }
+      const response = await fetch('https://www.google.com', { method: 'HEAD', cache: 'no-cache' });
+      return response.ok;
+    } catch { return false; }
   }
 
-  // 🔹 Load URL or fallback to T-Rex
+  // 7. Load URL with fallback
   async function loadURLWithFallback(url) {
     const online = await isOnline();
     if (online) {
-      try {
-        await view.webContents.loadURL(url);
-      } catch (err) {
-        console.error('Failed to load page:', err);
-        view.webContents.loadFile(trexPath);
-      }
-    } else {
-      console.log('Offline — loading T-Rex runner');
-      view.webContents.loadFile(trexPath);
+      try { await view.webContents.loadURL(url); return; }
+      catch (err) { console.error('[Navigation] Failed:', err); }
+    }
+    if (trexPath) {
+      console.log('[T-Rex] Loading offline game');
+      await view.webContents.loadFile(trexPath).catch(err => console.error('[T-Rex] Fallback failed:', err));
     }
   }
 
-  // Developer tools for the MAIN WINDOW (Toolbar)
-  win.webContents.openDevTools({ mode: 'detach' });
-
-  // IPC listeners
-
-  // NOTE: Switched from winContent to win.webContents in the toggle function
-  ipcMain.on('toogle-dev-tool', () => {
-    if (win.webContents.isDevToolsOpened()) {
-      win.webContents.closeDevTools();
-    } else {
-      win.webContents.openDevTools({ mode: 'detach' });
-    }
-  });
-
-  // Simplified navigation IPC handlers
-  ipcMain.on('go-back', () => {
-    if (view.webContents.canGoBack()) view.webContents.goBack();
-  });
-
-  ipcMain.handle('can-go-back', () => {
-    return view.webContents.canGoBack();
-  });
-
-  ipcMain.on('go-forward', () => {
-    if (view.webContents.canGoForward()) view.webContents.goForward();
-  });
-
-  ipcMain.handle('can-go-forward', () => {
-    return view.webContents.canGoForward();
-  });
-
-  ipcMain.on('refresh', () => {
-    view.webContents.reload();
-  });
-
-  ipcMain.handle('go-to-page', (event, url) => {
-    return loadURLWithFallback(url);
-  });
-
-  ipcMain.handle('current-url', () => {
-    return view.webContents.getURL();
-  });
-
-  // Navigation listener — sync address bar
-  view.webContents.on('did-start-navigation', (event, url, isInPlace, isMainFrame) => {
-    if (isMainFrame) {
-      // Send the new URL to the renderer process (Angular toolbar)
-      win.webContents.send('navigation-started', url);
-    }
-  });
-
-  // Window ready-to-show event
-  win.once('ready-to-show', async () => {
+  // 8. Setup and initial load
+  win.once('ready-to-show', () => {
     fitViewToWin();
-    const defaultURL = 'https://amiens.unilasalle.fr';
-    // Load the initial page using the fallback logic
-    await loadURLWithFallback(defaultURL);
+    loadURLWithFallback('https://amiens.unilasalle.fr');
   });
 
-  // Window resize event
-  win.on('resized', () => {
-    fitViewToWin();
-  });
+  win.on('resized', fitViewToWin);
 
-  // When user is offline and a load fails → show T-Rex
-  view.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    if (isMainFrame) {
-      console.log('Load failed — showing offline T-Rex');
-      // Load T-Rex only if the current content isn't already T-Rex or about:blank
-      if (!view.webContents.getURL().includes('trex/index.html')) {
-          view.webContents.loadFile(trexPath);
-      }
-    }
-  });
+  // 9. IPC handlers
+  ipcMain.on('toogle-dev-tool', () => view.webContents.toggleDevTools());
+  ipcMain.on('go-back', () => view.webContents.goBack());
+  ipcMain.on('go-forward', () => view.webContents.goForward());
+  ipcMain.on('refresh', () => view.webContents.reload());
+  ipcMain.handle('can-go-forward', () => view.webContents.canGoForward());
+  ipcMain.handle('can-go-back', () => view.webContents.canGoBack());
+  ipcMain.handle('current-url', () => view.webContents.getURL());
+  ipcMain.handle('go-to-page', async (event, url) => await loadURLWithFallback(url));
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
 });

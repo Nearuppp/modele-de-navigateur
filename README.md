@@ -27,3 +27,4 @@ Exécutez `npm run test` pour exécuter les tests unitaires via [Karma](https://
 ## Aide supplémentaire
 
 Pour obtenir plus d'aide sur la CLI angulaire, utilisez `ng help` ou consultez la page [Présentation de la CLI angulaire et référence des commandes](https://angular.io/cli).
+
