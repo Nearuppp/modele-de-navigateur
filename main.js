@@ -1,6 +1,29 @@
 const { app, WebContentsView, BrowserWindow, ipcMain } = require('electron');
 const path = require('node:path');
-const fs = require('fs'); // Keep fs for the T-Rex fallback, though not strictly needed here
+const fs = require('fs');
+function resolveTrexIndex() {
+    // dev path (relative to project)
+    const devPath = path.join(__dirname, 'trex', 'index.html');
+    if (fs.existsSync(devPath)) return devPath;
+
+    // When packaged, trex folder is extracted to resources/ (not in asar)
+    // process.resourcesPath points to ...\resources
+    const packagedPath = path.join(process.resourcesPath, 'trex', 'index.html');
+    if (fs.existsSync(packagedPath)) return packagedPath;
+
+    // Fallback: try inside app folder (if not using asar)
+    const packagedPath2 = path.join(process.resourcesPath, 'app', 'trex', 'index.html');
+    if (fs.existsSync(packagedPath2)) return packagedPath2;
+
+    // Log for debugging
+    console.error('T-Rex index.html not found. Checked:', { devPath, packagedPath, packagedPath2 });
+    console.error('__dirname:', __dirname);
+    console.error('process.resourcesPath:', process.resourcesPath);
+    return devPath; // fallback (will fail if missing)
+}
+
+const trexIndex = resolveTrexIndex();
+console.log('Loading T-Rex from:', trexIndex);
 
 app.whenReady().then(() => {
   const win = new BrowserWindow({
@@ -17,9 +40,6 @@ app.whenReady().then(() => {
   } else {
     win.loadURL('http://localhost:4200');
   }
-
-  // Path to your T-Rex game (local HTML file)
-  const trexPath = path.join(__dirname, 'trex', 'index.html');
 
   // WebContentsView = browser view
   const view = new WebContentsView();
@@ -62,11 +82,11 @@ app.whenReady().then(() => {
         await view.webContents.loadURL(url);
       } catch (err) {
         console.error('Failed to load page:', err);
-        view.webContents.loadFile(trexPath);
+        view.webContents.loadFile(trexIndex);
       }
     } else {
       console.log('Offline — loading T-Rex runner');
-      view.webContents.loadFile(trexPath);
+      view.webContents.loadFile(trexIndex);
     }
   }
 
@@ -140,7 +160,7 @@ app.whenReady().then(() => {
       console.log('Load failed — showing offline T-Rex');
       // Load T-Rex only if the current content isn't already T-Rex or about:blank
       if (!view.webContents.getURL().includes('trex/index.html')) {
-          view.webContents.loadFile(trexPath);
+          view.webContents.loadFile(trexIndex);
       }
     }
   });

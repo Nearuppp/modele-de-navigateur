@@ -52,13 +52,21 @@
     "wait-on": "^8.0.0"
   },
   "build": {
-    "directories": {
-      "output": "releases"
-    },
+    "appId": "com.unilasalle.browser",
     "files": [
+      "dist/**/*",
       "main.js",
       "preload.js",
-      "dist/**/*"
-    ]
+      "trex/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "trex",
+        "to": "trex"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    }
   }
 }
