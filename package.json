@@ -53,6 +53,9 @@
   },
   "build": {
     "appId": "com.unilasalle.browser",
+    "directories": {
+      "output": "releases"
+    },
     "files": [
       "dist/**/*",
       "main.js",
